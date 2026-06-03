@@ -1,21 +1,26 @@
 package main
 
-import "fmt"
-
-type User struct {
-	Name string
-	Age  int
-}
+import (
+	"fmt"
+	"net/http"
+)
 
 func main() {
-	user := User{}
+	mux := http.NewServeMux()
 
-	createUser(&user.Name, &user.Age)
+	mux.HandleFunc("/users/register", userRegisterHandler)
+	mux.HandleFunc("/health-check", helthCheckHandler)
 
-	fmt.Println("user:", user)
+	server := http.Server{Addr: ":8080", Handler: mux}
+	server.ListenAndServe()
 }
 
-func createUser(name *string, age *int) {
-	*name = "mohamad"
-	*age = 2
+func userRegisterHandler(resWriter http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		fmt.Fprintf(resWriter, "Invalid Method")
+	}
+}
+
+func helthCheckHandler(resWriter http.ResponseWriter, _ *http.Request){
+	fmt.Fprintf(resWriter, "Everything is Good")
 }
