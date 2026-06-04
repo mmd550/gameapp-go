@@ -15,7 +15,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	if err := postgres.RunMigrations(cfg.DB, "repository/migrations"); err != nil {
+	if err := postgres.RunMigrations(cfg.DB, "repository/postgres/migrations"); err != nil {
 		log.Fatalf("migrations: %v", err)
 	}
 
