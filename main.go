@@ -30,6 +30,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /users/register", userHandler.Register)
+	mux.HandleFunc("POST /users/login", userHandler.Login)
 	mux.HandleFunc("GET /health-check", healthCheckHandler)
 
 	addr := fmt.Sprintf(":%s", cfg.HTTP.Port)
