@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -39,7 +40,17 @@ func main() {
 }
 
 func healthCheckHandler(w http.ResponseWriter, _ *http.Request) {
-	_, err := w.Write([]byte("Everything is Good"))
+	jsonResponse, err := json.Marshal(map[string]string{"status": "ok"})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Printf("HealthCheckHandler: Failed to marshal response: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(jsonResponse)
 
 	if err != nil {
 		fmt.Printf("healthCheckHandler: %v", err)
