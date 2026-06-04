@@ -1,10 +1,17 @@
 package userservice
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"gameapp/config"
 	"gameapp/entity"
 	"gameapp/pkg/phonenumber"
+	"net/http"
+	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -15,7 +22,8 @@ type UserRepository interface {
 }
 
 type Service struct {
-	repo UserRepository
+	repo      UserRepository
+	jwtConfig config.JWTConfig
 }
 
 type RegisterRequest struct {
@@ -28,8 +36,8 @@ type RegisterResponse struct {
 	user entity.User
 }
 
-func New(repo UserRepository) Service {
-	return Service{repo: repo}
+func New(repo UserRepository, jwtConfig config.JWTConfig) Service {
+	return Service{repo, jwtConfig}
 }
 
 func (s Service) Register(req RegisterRequest) (RegisterResponse, error) {
@@ -87,11 +95,10 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
+	AccessToken string `json:"access_token"`
 }
 
 func (s Service) Login(req LoginRequest) (LoginResponse, error) {
-	// check if user exists
-
 	if req.PhoneNumber == "" {
 		return LoginResponse{}, fmt.Errorf("phone_number is required")
 	}
@@ -100,10 +107,8 @@ func (s Service) Login(req LoginRequest) (LoginResponse, error) {
 		return LoginResponse{}, fmt.Errorf("password is required")
 	}
 
-	// Get the user from db first
 	user, notFound, err := s.repo.GetByPhoneNumber(req.PhoneNumber)
 	if notFound {
-		// User not found
 		return LoginResponse{}, fmt.Errorf("invalid phone number or password")
 	}
 
@@ -111,16 +116,93 @@ func (s Service) Login(req LoginRequest) (LoginResponse, error) {
 		return LoginResponse{}, fmt.Errorf("unexpected error %w", err)
 	}
 
-	// Compare the provided password with the stored hash
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		// Password doesn't match
 		return LoginResponse{}, fmt.Errorf("invalid phone number or password")
 	}
 
-	return LoginResponse{}, nil
+	accessToken, err := s.createToken(user)
+	if err != nil {
+		return LoginResponse{}, fmt.Errorf("unexpected error %w", err)
+	}
+
+	return LoginResponse{AccessToken: accessToken}, nil
+}
+
+type CustomClaims struct {
+	jwt.RegisteredClaims
+	UserID string `json:"user_id"`
+}
+
+func (s Service) ParseToken(r *http.Request) (*CustomClaims, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, fmt.Errorf("authorization header is required")
+	}
+
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
+		return nil, fmt.Errorf("authorization header format must be: Bearer <token>")
+	}
+
+	token, err := jwt.ParseWithClaims(parts[1], &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.jwtConfig.Secret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	claims, ok := token.Claims.(*CustomClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
+	return claims, nil
+}
+
+func (s Service) createToken(user entity.User) (string, error) {
+	expirationTime := time.Now().Add(
+		time.Duration(s.jwtConfig.ExpirationDurationMinutes) * time.Minute,
+	)
+
+	jti, err := generateTokenID()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token ID: %w", err)
+	}
+
+	claims := CustomClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "gameapp",
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        jti, // Protect against replay attacks
+		},
+		UserID: fmt.Sprintf("%d", user.Id),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	tokenString, err := token.SignedString([]byte(s.jwtConfig.Secret))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return tokenString, nil
 }
 
 func encryptPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
+}
+
+// generateTokenID creates a unique identifier for each token
+func generateTokenID() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

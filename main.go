@@ -25,7 +25,7 @@ func main() {
 	}
 
 	userRepo := postgres.NewUserRepository(db)
-	userSvc := userservice.New(userRepo)
+	userSvc := userservice.New(userRepo, cfg.JWT)
 	userHandler := userhandler.New(userSvc)
 
 	mux := http.NewServeMux()
