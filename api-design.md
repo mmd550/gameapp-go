@@ -1,4 +1,5 @@
 # User 
-POST /users/register
+- POST /users/register
+- POST /users/login
 
 
