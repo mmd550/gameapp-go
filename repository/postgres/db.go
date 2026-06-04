@@ -62,6 +62,12 @@ func New(cfg Config, gormConfig *gorm.Config) *PostgresDB {
 	return &PostgresDB{db}
 }
 
+func (p *PostgresDB) Migrate() error {
+	return p.db.AutoMigrate(
+		&User{},
+	)
+}
+
 func getEnvValues() connectionsConfig {
 	maxOpen, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
 	if err != nil {
