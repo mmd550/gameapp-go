@@ -2,25 +2,46 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+
+	"gameapp/config"
+	"gameapp/handler/userhandler"
+	"gameapp/repository/postgres"
+	"gameapp/service/userservice"
 )
 
 func main() {
+	cfg := config.Load()
+
+	if err := postgres.RunMigrations(cfg.DB, "repository/migrations"); err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+
+	db, err := postgres.New(cfg.DB)
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+
+	userRepo := postgres.NewUserRepository(db)
+	userSvc := userservice.New(userRepo)
+	userHandler := userhandler.New(userSvc)
+
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /users/register", userHandler.Register)
+	mux.HandleFunc("GET /health-check", healthCheckHandler)
 
-	mux.HandleFunc("/users/register", userRegisterHandler)
-	mux.HandleFunc("/health-check", helthCheckHandler)
-
-	server := http.Server{Addr: ":8080", Handler: mux}
-	server.ListenAndServe()
-}
-
-func userRegisterHandler(resWriter http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		fmt.Fprintf(resWriter, "Invalid Method")
+	addr := fmt.Sprintf(":%s", cfg.HTTP.Port)
+	log.Printf("server listening on %s", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatalf("server: %v", err)
 	}
 }
 
-func helthCheckHandler(resWriter http.ResponseWriter, _ *http.Request){
-	fmt.Fprintf(resWriter, "Everything is Good")
+func healthCheckHandler(w http.ResponseWriter, _ *http.Request) {
+	_, err := w.Write([]byte("Everything is Good"))
+
+	if err != nil {
+		fmt.Printf("healthCheckHandler: %v", err)
+	}
 }

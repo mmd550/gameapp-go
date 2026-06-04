@@ -2,91 +2,58 @@ package postgres
 
 import (
 	"fmt"
-	"os"
-	"strconv"
-	"time"
 
+	"gameapp/config"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-type Config struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	DBName   string
-	// SSLMOde controls the SSL connection behavior
-	// Values: "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
-	// Normally is set to "disable" for local dev and "require" | "verify-full" for production
-	SSLMode string
+type DB struct {
+	conn *gorm.DB
 }
 
-type connectionsConfig struct {
-	maxOpenConnections  int
-	maxIdleConnections  int
-	connectionMaxLifetime int
-}
-
-type PostgresDB struct {
-	db *gorm.DB
-}
-
-func (m *PostgresDB) Conn() *gorm.DB {
-	return m.db
-}
-
-func New(cfg Config, gormConfig *gorm.Config) *PostgresDB {
+func New(cfg config.DBConfig) (*DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), gormConfig)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database")
+		return nil, fmt.Errorf("open database: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		panic("failed to get underlying sql.DB")
+		return nil, fmt.Errorf("get sql.DB: %w", err)
 	}
 
-	connConfig := getEnvValues()
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConnections)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConnections)
+	sqlDB.SetConnMaxLifetime(cfg.ConnectionMaxLifetime)
 
-	sqlDB.SetMaxOpenConns(connConfig.maxOpenConnections)
-	sqlDB.SetMaxIdleConns(connConfig.maxIdleConnections)
-	sqlDB.SetConnMaxLifetime(time.Duration(connConfig.connectionMaxLifetime))
-
-
-	return &PostgresDB{db}
+	return &DB{conn: db}, nil
 }
 
-func (p *PostgresDB) Migrate() error {
-	return p.db.AutoMigrate(
-		&User{},
+func RunMigrations(cfg config.DBConfig, migrationsPath string) error {
+	dsn := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.DBName, cfg.SSLMode,
 	)
-}
 
-func getEnvValues() connectionsConfig {
-	maxOpen, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
+	m, err := migrate.New("file://"+migrationsPath, dsn)
 	if err != nil {
-		maxOpen = 25
+		panic(fmt.Sprintf("Failed to create migrator: %v", err))
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		panic(fmt.Sprintf("Failed to run migrations: %v", err))
 	}
 
-	maxIdle, err := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
-	if err != nil {
-		maxIdle = 10
-	}
-
-	connLifetime, err := time.ParseDuration(os.Getenv("DB_CONN_MAX_LIFETIME"))
-	if err != nil {
-		connLifetime = 30 * time.Minute
-	}
-
-	return connectionsConfig{
-		maxOpenConnections:  maxOpen,
-		maxIdleConnections:  maxIdle,
-		connectionMaxLifetime: int(connLifetime),
-	}
+	return nil
 }
