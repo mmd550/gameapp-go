@@ -72,3 +72,23 @@ func (r *UserRepository) GetByPhoneNumber(phoneNumber string) (entity.User, bool
 		Password:    user.Password,
 	}, false, nil
 }
+
+func (r *UserRepository) GetById(id uint) (entity.User, error) {
+	ctx := context.Background()
+
+	user, err := gorm.G[User](r.db.conn).Where("id = ?", id).First(ctx)
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return entity.User{}, fmt.Errorf("user not found with id: %d", id)
+		}
+		return entity.User{}, fmt.Errorf("unexpected error when getting user by id: %w", err)
+	}
+
+	return entity.User{
+		Id:          user.ID,
+		Name:        user.Name,
+		PhoneNumber: user.PhoneNumber,
+		Password:    user.Password,
+	}, nil
+}

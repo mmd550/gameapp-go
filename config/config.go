@@ -9,7 +9,7 @@ import (
 type Config struct {
 	DB   DBConfig
 	HTTP HTTPConfig
-	JWT  JWTConfig
+	Auth AuthConfig
 }
 
 type DBConfig struct {
@@ -28,9 +28,9 @@ type HTTPConfig struct {
 	Port string
 }
 
-type JWTConfig struct {
-	Secret                    string
-	ExpirationDurationMinutes int
+type AuthConfig struct {
+	Secret                       string
+	AccessTokenExpirationMinutes time.Duration
 }
 
 func Load() Config {
@@ -49,9 +49,9 @@ func Load() Config {
 		HTTP: HTTPConfig{
 			Port: getEnv("HTTP_PORT", "8080"),
 		},
-		JWT: JWTConfig{
-			Secret:                    getEnv("JWT_SECRET", ""),
-			ExpirationDurationMinutes: getEnvInt("JWT_EXPIRATION_DURATION_MINUTES", 24*60), //24 hours
+		Auth: AuthConfig{
+			Secret:                       getEnv("JWT_SECRET", ""),
+			AccessTokenExpirationMinutes: getEnvDuration("ACCESS_TOKEN_EXPIRATION_MINUTES", time.Duration(24*60)), //24 hours
 		},
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"gameapp/service/authservice"
 	"log"
 	"net/http"
 
@@ -24,13 +25,15 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
+	authService := authservice.New(cfg.Auth)
 	userRepo := postgres.NewUserRepository(db)
-	userSvc := userservice.New(userRepo, cfg.JWT)
-	userHandler := userhandler.New(userSvc)
+	userSvc := userservice.New(userRepo, authService)
+	userHandler := userhandler.New(userSvc, authService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /users/register", userHandler.Register)
 	mux.HandleFunc("POST /users/login", userHandler.Login)
+	mux.HandleFunc("GET /users/profile", userHandler.GetProfile)
 	mux.HandleFunc("GET /health-check", healthCheckHandler)
 
 	addr := fmt.Sprintf(":%s", cfg.HTTP.Port)
