@@ -30,8 +30,13 @@ type RegisterRequest struct {
 	Password    string `json:"password"`
 }
 
+type RegisteredUser struct {
+	Name        string `json:"name"`
+	PhoneNumber string `json:"phone_number"`
+	Id          uint   `json:"id"`
+}
 type RegisterResponse struct {
-	user entity.User
+	User RegisteredUser `json:"user"`
 }
 
 func New(repo UserRepository, authService AuthService) Service {
@@ -84,7 +89,11 @@ func (s Service) Register(req RegisterRequest) (RegisterResponse, error) {
 		return RegisterResponse{}, fmt.Errorf("unexpected error: %w", registerErr)
 	}
 
-	return RegisterResponse{user}, nil
+	return RegisterResponse{RegisteredUser{
+		Name:        user.Name,
+		PhoneNumber: user.PhoneNumber,
+		Id:          user.Id,
+	}}, nil
 }
 
 type LoginRequest struct {

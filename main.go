@@ -1,16 +1,13 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	httpserver "gameapp/delivery"
 	"gameapp/service/authservice"
+	"gameapp/service/userservice"
 	"log"
-	"net/http"
 
 	"gameapp/config"
-	"gameapp/handler/userhandler"
 	"gameapp/repository/postgres"
-	"gameapp/service/userservice"
 )
 
 func main() {
@@ -25,38 +22,18 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
-	authService := authservice.New(cfg.Auth)
-	userRepo := postgres.NewUserRepository(db)
-	userSvc := userservice.New(userRepo, authService)
-	userHandler := userhandler.New(userSvc, authService)
+	serverConfig := setupServerConfig(cfg, db)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /users/register", userHandler.Register)
-	mux.HandleFunc("POST /users/login", userHandler.Login)
-	mux.HandleFunc("GET /users/profile", userHandler.GetProfile)
-	mux.HandleFunc("GET /health-check", healthCheckHandler)
+	server := httpserver.New(serverConfig)
 
-	addr := fmt.Sprintf(":%s", cfg.HTTP.Port)
-	log.Printf("server listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatalf("server: %v", err)
-	}
+	server.Start()
 }
 
-func healthCheckHandler(w http.ResponseWriter, _ *http.Request) {
-	jsonResponse, err := json.Marshal(map[string]string{"status": "ok"})
+func setupServerConfig(cfg config.Config, db *postgres.DB) httpserver.Config {
+	userRepo := postgres.NewUserRepository(db)
 
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Printf("HealthCheckHandler: Failed to marshal response: %v", err)
-		return
-	}
+	authService := authservice.New(cfg.Auth)
+	userSvc := userservice.New(userRepo, authService)
 
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(jsonResponse)
-
-	if err != nil {
-		fmt.Printf("healthCheckHandler: %v", err)
-	}
+	return httpserver.Config{UserService: userSvc, AuthService: authService}
 }
