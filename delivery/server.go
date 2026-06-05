@@ -28,9 +28,11 @@ func New(config Config) HttpServer {
 
 	e.GET("/health-check", HealthCheckHandler)
 
-	e.POST("/users/register", userHandler.Register)
-	e.POST("/users/login", userHandler.Login)
-	e.GET("/users/profile", userHandler.GetProfile)
+	userGroup := e.Group("/users")
+
+	userGroup.POST("/register", userHandler.Register)
+	userGroup.POST("/login", userHandler.Login)
+	userGroup.GET("/profile", userHandler.GetProfile)
 
 	return HttpServer{e}
 }

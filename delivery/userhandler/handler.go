@@ -15,6 +15,7 @@ type Handler struct {
 }
 
 func New(svc userservice.Service, authSvc *authservice.Service) *Handler {
+	// TODO - say hi to your father 
 	return &Handler{userService: svc, authService: authSvc}
 }
 

@@ -44,7 +44,7 @@ func New(repo UserRepository, authService AuthService) Service {
 }
 
 func (s Service) Register(req RegisterRequest) (RegisterResponse, error) {
-	// TODO: We should verify phone number by verification code
+	// TODO - We should verify phone number by verification code
 
 	if req.Name == "" {
 		return RegisterResponse{}, fmt.Errorf("name is required")
