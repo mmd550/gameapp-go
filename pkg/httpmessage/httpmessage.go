@@ -20,8 +20,12 @@ func Error(err error) (message string, code int) {
 			msg = errormessage.ErrorMessageSomethingWentWrong
 		}
 
-		return msg, code
+		return msg, code		
 	default:
+		if err == nil {
+			fmt.Print("encountered unhandled error")
+			return errormessage.ErrorMessageSomethingWentWrong, http.StatusInternalServerError
+		}
 		fmt.Printf("encountered unhandled error: %s", err.Error())
 		return errormessage.ErrorMessageSomethingWentWrong, http.StatusInternalServerError
 	}
