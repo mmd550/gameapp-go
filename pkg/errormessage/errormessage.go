@@ -1,6 +1,8 @@
 package errormessage
 
 const (
-	ErrorMessageNotFound           = "record not found"
-	ErrorMessageSomethingWentWrong = "something went wrong"
+	NotFound = "record not found"
+	SomethingWentWrong   = "something went wrong"
+	BadRequest = "bad request"
+	PhoneNumberIsNotUique = "phone number is not unique"
 )

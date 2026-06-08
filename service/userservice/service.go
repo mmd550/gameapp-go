@@ -2,8 +2,8 @@ package userservice
 
 import (
 	"fmt"
+	"gameapp/dto"
 	"gameapp/entity"
-	"gameapp/pkg/phonenumber"
 	"gameapp/pkg/richerror"
 
 	"golang.org/x/crypto/bcrypt"
@@ -25,134 +25,84 @@ type Service struct {
 	authService AuthService
 }
 
-type RegisterRequest struct {
-	Name        string `json:"name"`
-	PhoneNumber string `json:"phone_number"`
-	Password    string `json:"password"`
-}
-
-type RegisteredUser struct {
-	Name        string `json:"name"`
-	PhoneNumber string `json:"phone_number"`
-	Id          uint   `json:"id"`
-}
-type RegisterResponse struct {
-	User RegisteredUser `json:"user"`
-}
-
 func New(repo UserRepository, authService AuthService) Service {
 	return Service{repo, authService}
 }
 
-func (s Service) Register(req RegisterRequest) (RegisterResponse, error) {
+func (s Service) Register(req dto.RegisterRequest) (dto.RegisterResponse, error) {
 	// TODO - We should verify phone number by verification code
-
-	if req.Name == "" {
-		return RegisterResponse{}, fmt.Errorf("name is required")
-	}
-
-	if req.PhoneNumber == "" {
-		return RegisterResponse{}, fmt.Errorf("phone_number is required")
-	}
-
-	if req.Password == "" {
-		return RegisterResponse{}, fmt.Errorf("password is required")
-	}
-
-	// validate phone number
-	if !phonenumber.IsValid(req.PhoneNumber) {
-		return RegisterResponse{}, fmt.Errorf("phone number is not valid")
-	}
 
 	// check uniqueness of phone number
 	if isUnique, err := s.repo.IsPhoneNumberUnique(req.PhoneNumber); err != nil || !isUnique {
 		if err != nil {
-			return RegisterResponse{}, fmt.Errorf("unexpected error %w", err)
+			return dto.RegisterResponse{}, fmt.Errorf("unexpected error %w", err)
 		}
 
-		return RegisterResponse{}, fmt.Errorf("phone number is not unique")
-	}
-
-	// validate name
-	if len(req.Name) < 3 {
-		return RegisterResponse{}, fmt.Errorf("name length should be greater than 3")
+		return dto.RegisterResponse{}, fmt.Errorf("phone number is not unique")
 	}
 
 	hashedPassword, encryptionErr := encryptPassword(req.Password)
 
 	if encryptionErr != nil {
-		return RegisterResponse{}, fmt.Errorf("unexpected error %w", encryptionErr)
+		return dto.RegisterResponse{}, fmt.Errorf("unexpected error %w", encryptionErr)
 	}
 
 	user, registerErr := s.repo.Register(entity.User{PhoneNumber: req.PhoneNumber, Name: req.Name, Password: string(hashedPassword)})
 
 	if registerErr != nil {
-		return RegisterResponse{}, fmt.Errorf("unexpected error: %w", registerErr)
+		return dto.RegisterResponse{}, fmt.Errorf("unexpected error: %w", registerErr)
 	}
 
-	return RegisterResponse{RegisteredUser{
+	return dto.RegisterResponse{User: dto.RegisteredUser{
 		Name:        user.Name,
 		PhoneNumber: user.PhoneNumber,
 		Id:          user.Id,
 	}}, nil
 }
 
-type LoginRequest struct {
-	PhoneNumber string `json:"phone_number"`
-	Password    string `json:"password"`
-}
-
 type LoginResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
-func (s Service) Login(req LoginRequest) (LoginResponse, error) {
+func (s Service) Login(req dto.LoginRequest) (dto.LoginResponse, error) {
 	op := "userservice.login"
 	if req.PhoneNumber == "" {
-		return LoginResponse{}, richerror.New(op).WithKind(richerror.KindInvalid).WithMessage("phone number is required")
+		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindInvalid).WithMessage("phone number is required")
 	}
 
 	if req.Password == "" {
-		return LoginResponse{}, richerror.New(op).WithKind(richerror.KindInvalid).WithMessage("password is required")
+		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindInvalid).WithMessage("password is required")
 	}
 
 	user, notFound, err := s.repo.GetByPhoneNumber(req.PhoneNumber)
 	if notFound {
-		return LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage("invalid phone number or password")
+		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage("invalid phone number or password")
 	}
 
 	if err != nil {
-		return LoginResponse{}, richerror.New(op).WithErr(err).WithMessage("unexpected error").WithKind(richerror.KindUnexpected)
+		return dto.LoginResponse{}, richerror.New(op).WithErr(err).WithMessage("unexpected error").WithKind(richerror.KindUnexpected)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		return LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage("invalid phone number or password")
+		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage("invalid phone number or password")
 	}
 
 	accessToken, err := s.authService.CreateAccessToken(user.Id)
 	if err != nil {
-		return LoginResponse{}, richerror.New(op).WithErr(err).WithMessage("unexpected error").WithKind(richerror.KindUnexpected)
+		return dto.LoginResponse{}, richerror.New(op).WithErr(err).WithMessage("unexpected error").WithKind(richerror.KindUnexpected)
 	}
 
-	return LoginResponse{AccessToken: accessToken}, nil
+	return dto.LoginResponse{AccessToken: accessToken}, nil
 }
 
-type GetProfileRequest struct {
-	UserId uint
-}
-
-type GetProfileResponse struct {
-	Name string `json:"name"`
-}
-
-func (s Service) GetProfile(req GetProfileRequest) (GetProfileResponse, error) {
+func (s Service) GetProfile(req dto.GetProfileRequest) (dto.GetProfileResponse, error) {
 	user, err := s.repo.GetById(req.UserId)
 
 	if err != nil {
-		return GetProfileResponse{}, fmt.Errorf("unexpected error %w", err)
+		return dto.GetProfileResponse{}, fmt.Errorf("unexpected error %w", err)
 	}
 
-	return GetProfileResponse{
+	return dto.GetProfileResponse{
 		Name: user.Name,
 	}, nil
 }

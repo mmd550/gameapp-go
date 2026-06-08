@@ -1,7 +1,11 @@
 package userhandler
 
 import (
+	"gameapp/dto"
+	"gameapp/pkg/httpmessage"
 	"gameapp/service/authservice"
+	"gameapp/validation"
+	uservalidation "gameapp/validation/user"
 	"net/http"
 
 	"gameapp/service/userservice"
@@ -12,18 +16,29 @@ import (
 type Handler struct {
 	userService userservice.Service
 	authService *authservice.Service
+	validator   uservalidation.UserValidator
 }
 
-func New(svc userservice.Service, authSvc *authservice.Service) *Handler {
-	// TODO - say hi to your father 
-	return &Handler{userService: svc, authService: authSvc}
+func New(svc userservice.Service, authSvc *authservice.Service, validator uservalidation.UserValidator) *Handler {
+	return &Handler{userService: svc, authService: authSvc, validator: validator}
 }
 
 func (handler *Handler) Register(c *echo.Context) error {
-	var req userservice.RegisterRequest
+	var req dto.RegisterRequest
 
 	if bindErr := c.Bind(&req); bindErr != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, bindErr.Error())
+	}
+
+	validationError, filedErrors := handler.validator.ValidateRegisterRequest(req)
+
+	if validationError != nil {
+		message, code := httpmessage.Error(validationError)
+
+		return c.JSON(code, validation.ValidationError{
+			Message: message,
+			FieldErrors: filedErrors,
+		})
 	}
 
 	resp, err := handler.userService.Register(req)
@@ -35,7 +50,7 @@ func (handler *Handler) Register(c *echo.Context) error {
 }
 
 func (handler *Handler) Login(c *echo.Context) error {
-	var req userservice.LoginRequest
+	var req dto.LoginRequest
 
 	if bindErr := c.Bind(&req); bindErr != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, bindErr.Error())
@@ -56,7 +71,7 @@ func (handler *Handler) GetProfile(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, authenticationError.Error())
 	}
 
-	profile, err := handler.userService.GetProfile(userservice.GetProfileRequest{
+	profile, err := handler.userService.GetProfile(dto.GetProfileRequest{
 		UserId: userId,
 	})
 

@@ -17,17 +17,17 @@ func Error(err error) (message string, code int) {
 		code := mapKindToHTTPStatusCode(re.Kind())
 
 		if code >= 500 {
-			msg = errormessage.ErrorMessageSomethingWentWrong
+			msg = errormessage.SomethingWentWrong
 		}
 
-		return msg, code		
+		return msg, code
 	default:
 		if err == nil {
 			fmt.Print("encountered unhandled error")
-			return errormessage.ErrorMessageSomethingWentWrong, http.StatusInternalServerError
+			return errormessage.SomethingWentWrong, http.StatusInternalServerError
 		}
 		fmt.Printf("encountered unhandled error: %s", err.Error())
-		return errormessage.ErrorMessageSomethingWentWrong, http.StatusInternalServerError
+		return errormessage.SomethingWentWrong, http.StatusInternalServerError
 	}
 
 }

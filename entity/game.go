@@ -2,7 +2,7 @@ package entity
 
 import "time"
 
-type Game struct{
+type game struct{
 	Id uint
 	CategoryId uint
 	QuestionIds []uint
