@@ -32,7 +32,7 @@ func Error(err error) (message string, code int) {
 
 }
 
-func mapKindToHTTPStatusCode(kind richerror.Kind) int {
+func mapKindToHTTPStatusCode(kind richerror.ErrorKind) int {
 	switch kind {
 	case richerror.KindForbidden:
 		return http.StatusUnauthorized

@@ -1,11 +1,9 @@
 package richerror
 
-import "fmt"
-
-type Kind uint
+type ErrorKind uint
 
 const (
-	KindInvalid Kind = iota + 1
+	KindInvalid ErrorKind = iota + 1
 	KindForbidden
 	KindNotFound
 	KindUnexpected
@@ -14,7 +12,7 @@ const (
 type RichError struct {
 	wrappedError error
 	message      string
-	kind         Kind
+	kind         ErrorKind
 	operation    string
 	meta         map[string]any
 }
@@ -30,7 +28,7 @@ func (err RichError) WithMessage(message string) RichError {
 	return err
 }
 
-func (err RichError) WithKind(kind Kind) RichError {
+func (err RichError) WithKind(kind ErrorKind) RichError {
 	err.kind = kind
 	return err
 }
@@ -45,7 +43,7 @@ func (err RichError) WithMeta(meta map[string]any) RichError {
 	return err
 }
 
-func (err RichError) Kind() Kind {
+func (err RichError) Kind() ErrorKind {
 	if err.kind != 0 {
 		return err.kind
 	}
@@ -74,5 +72,5 @@ func (err RichError) Message() string {
 }
 
 func (r RichError) Error() string {
-	return fmt.Sprintf("%s: %s", r.operation, r.message)
+	return r.message
 }

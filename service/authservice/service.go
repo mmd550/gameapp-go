@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"gameapp/config"
+	"gameapp/pkg/errormessage"
+	"gameapp/pkg/richerror"
 	"net/http"
 	"strconv"
 	"strings"
@@ -40,14 +42,19 @@ func (s Service) CreateRefreshToken(userId uint) (string, error) {
 }
 
 func (s Service) AuthenticateUser(r *http.Request) (uint, error) {
+	op := "AuthService.AuthenticateUser"
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return 0, fmt.Errorf("authorization header is required")
+		return 0, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage(errormessage.Forbidden).WithMeta(map[string]any{
+			"details": "no Authorization header in request headers",
+		})
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-		return 0, fmt.Errorf("authorization header format must be: Bearer <token>")
+		return 0, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage(errormessage.Forbidden).WithMeta(map[string]any{
+			"details": fmt.Sprintf("invalid authorization header format value: %s", authHeader),
+		})
 	}
 
 	claims, parseErr := s.parseToken(parts[1], ACCESS_TOKEN_SUBJECT)
@@ -59,7 +66,9 @@ func (s Service) AuthenticateUser(r *http.Request) (uint, error) {
 	userId, conversionErr := strconv.ParseUint(claims.UserID, 10, 32)
 
 	if conversionErr != nil {
-		return 0, fmt.Errorf("unexpected user id %s", claims.UserID)
+		return 0, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage(errormessage.Forbidden).WithMeta(map[string]any{
+			"details": fmt.Sprintf("unexpected user id %s", claims.UserID),
+		})
 	}
 
 	return uint(userId), nil

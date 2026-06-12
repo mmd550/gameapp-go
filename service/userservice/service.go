@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"gameapp/dto"
 	"gameapp/entity"
+	"gameapp/pkg/errormessage"
+	"gameapp/pkg/httpmessage"
 	"gameapp/pkg/richerror"
+	"net/http"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UserRepository interface {
-	IsPhoneNumberUnique(phoneNumber string) (bool, error)
 	Register(u entity.User) (entity.User, error)
-	GetByPhoneNumber(phoneNumber string) (entity.User, bool, error)
+	GetByPhoneNumber(phoneNumber string) (entity.User, error)
 	GetById(id uint) (entity.User, error)
 }
 
@@ -31,15 +33,6 @@ func New(repo UserRepository, authService AuthService) Service {
 
 func (s Service) Register(req dto.RegisterRequest) (dto.RegisterResponse, error) {
 	// TODO - We should verify phone number by verification code
-
-	// check uniqueness of phone number
-	if isUnique, err := s.repo.IsPhoneNumberUnique(req.PhoneNumber); err != nil || !isUnique {
-		if err != nil {
-			return dto.RegisterResponse{}, fmt.Errorf("unexpected error %w", err)
-		}
-
-		return dto.RegisterResponse{}, fmt.Errorf("phone number is not unique")
-	}
 
 	hashedPassword, encryptionErr := encryptPassword(req.Password)
 
@@ -65,26 +58,20 @@ type LoginResponse struct {
 }
 
 func (s Service) Login(req dto.LoginRequest) (dto.LoginResponse, error) {
-	op := "userservice.login"
-	if req.PhoneNumber == "" {
-		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindInvalid).WithMessage("phone number is required")
-	}
+	op := "UserService.Login"
 
-	if req.Password == "" {
-		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindInvalid).WithMessage("password is required")
-	}
-
-	user, notFound, err := s.repo.GetByPhoneNumber(req.PhoneNumber)
-	if notFound {
-		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage("invalid phone number or password")
-	}
+	user, err := s.repo.GetByPhoneNumber(req.PhoneNumber)
 
 	if err != nil {
+		_, status := httpmessage.Error(err)
+		if status == http.StatusNotFound {
+			return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage(errormessage.InvalidPhoneOrPassword)
+		}
 		return dto.LoginResponse{}, richerror.New(op).WithErr(err).WithMessage("unexpected error").WithKind(richerror.KindUnexpected)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage("invalid phone number or password")
+		return dto.LoginResponse{}, richerror.New(op).WithKind(richerror.KindForbidden).WithMessage(errormessage.InvalidPhoneOrPassword)
 	}
 
 	accessToken, err := s.authService.CreateAccessToken(user.Id)
@@ -96,10 +83,11 @@ func (s Service) Login(req dto.LoginRequest) (dto.LoginResponse, error) {
 }
 
 func (s Service) GetProfile(req dto.GetProfileRequest) (dto.GetProfileResponse, error) {
+	op := "UserService.GetProfile"
 	user, err := s.repo.GetById(req.UserId)
 
 	if err != nil {
-		return dto.GetProfileResponse{}, fmt.Errorf("unexpected error %w", err)
+		return dto.GetProfileResponse{}, richerror.New(op).WithErr(err).WithKind(richerror.KindUnexpected).WithMessage(errormessage.SomethingWentWrong)
 	}
 
 	return dto.GetProfileResponse{

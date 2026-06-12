@@ -46,13 +46,9 @@ func New() HttpServer {
 	e.Use(middleware.RequestLogger()) // use the RequestLogger middleware with slog logger
 	e.Use(middleware.Recover())
 
+	userHandler.AddUserRoutes(e, "/users")
+
 	e.GET("/health-check", HealthCheckHandler)
-
-	userGroup := e.Group("/users")
-
-	userGroup.POST("/register", userHandler.Register)
-	userGroup.POST("/login", userHandler.Login)
-	userGroup.GET("/profile", userHandler.GetProfile)
 
 	return HttpServer{e}
 }

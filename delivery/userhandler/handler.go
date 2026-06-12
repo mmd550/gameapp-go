@@ -36,7 +36,7 @@ func (handler *Handler) Register(c *echo.Context) error {
 		message, code := httpmessage.Error(validationError)
 
 		return c.JSON(code, validation.ValidationError{
-			Message: message,
+			Message:     message,
 			FieldErrors: filedErrors,
 		})
 	}
@@ -56,9 +56,21 @@ func (handler *Handler) Login(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, bindErr.Error())
 	}
 
+	validationError, filedErrors := handler.validator.ValidateLoginRequest(req)
+
+	if validationError != nil {
+		message, code := httpmessage.Error(validationError)
+
+		return c.JSON(code, validation.ValidationError{
+			Message:     message,
+			FieldErrors: filedErrors,
+		})
+	}
+
 	resp, err := handler.userService.Login(req)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		message, code := httpmessage.Error(err)
+		return echo.NewHTTPError(code, message)
 	}
 
 	return c.JSON(http.StatusOK, resp)
@@ -68,7 +80,8 @@ func (handler *Handler) GetProfile(c *echo.Context) error {
 	userId, authenticationError := handler.authService.AuthenticateUser(c.Request())
 
 	if authenticationError != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, authenticationError.Error())
+		message, code := httpmessage.Error(authenticationError)
+		return echo.NewHTTPError(code, message)
 	}
 
 	profile, err := handler.userService.GetProfile(dto.GetProfileRequest{
@@ -76,7 +89,8 @@ func (handler *Handler) GetProfile(c *echo.Context) error {
 	})
 
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		message, code := httpmessage.Error(err)
+		return echo.NewHTTPError(code, message)
 	}
 
 	return c.JSON(http.StatusOK, profile)
